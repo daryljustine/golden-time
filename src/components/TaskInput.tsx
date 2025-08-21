@@ -155,10 +155,10 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
 
 
 
-  // Calculate session-based total time
+  // Calculate session-based total time and metadata
   const calculateSessionBasedTime = () => {
     if (!formData.startDate || !formData.deadline || estimationMode !== 'session') {
-      return 0;
+      return { totalTime: 0, sessions: 0, frequency: '', feasible: true, warning: '' };
     }
 
     const startDate = new Date(formData.startDate);
@@ -166,32 +166,78 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
     const timeDiff = endDate.getTime() - startDate.getTime();
     const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
 
-    if (daysDiff <= 0) return 0;
+    if (daysDiff <= 0) {
+      return { totalTime: 0, sessions: 0, frequency: 'Invalid date range', feasible: false, warning: 'Deadline must be after start date' };
+    }
 
-    // Calculate sessions based on work days (exclude weekends if not in workDays)
-    const workDaysInRange = Math.ceil(daysDiff * (userSettings.workDays.length / 7));
+    const sessionDuration = (parseInt(sessionData.sessionHours) || 0) + (parseInt(sessionData.sessionMinutes) || 0) / 60;
+    if (sessionDuration <= 0) {
+      return { totalTime: 0, sessions: 0, frequency: '', feasible: true, warning: '' };
+    }
 
-    // Conservative approach: assume we can do 1 session every 2-3 work days
-    const sessionFrequency = Math.max(1, Math.floor(workDaysInRange / 3));
-    const numberOfSessions = Math.max(1, sessionFrequency);
+    // Calculate work days in the range
+    let workDaysInRange = 0;
+    const currentDate = new Date(startDate);
 
-    const sessionDuration = parseFloat(sessionData.sessionDuration) || 0;
-    return sessionDuration * numberOfSessions;
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      if (userSettings.workDays.includes(dayOfWeek)) {
+        workDaysInRange++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (workDaysInRange === 0) {
+      return { totalTime: 0, sessions: 0, frequency: 'No work days', feasible: false, warning: 'No work days in the selected range' };
+    }
+
+    // Calculate optimal session distribution
+    let numberOfSessions;
+    let frequency;
+
+    if (workDaysInRange <= 5) {
+      // Short timeline: 1 session every other work day
+      numberOfSessions = Math.max(1, Math.ceil(workDaysInRange / 2));
+      frequency = 'Every 2-3 days';
+    } else if (workDaysInRange <= 14) {
+      // Medium timeline: 2-3 sessions per week
+      numberOfSessions = Math.max(2, Math.ceil(workDaysInRange * 0.4));
+      frequency = '2-3 times per week';
+    } else {
+      // Long timeline: 2-3 sessions per week
+      numberOfSessions = Math.max(3, Math.ceil(workDaysInRange * 0.3));
+      frequency = '2-3 times per week';
+    }
+
+    const totalTime = sessionDuration * numberOfSessions;
+
+    // Check feasibility
+    const dailyCapacity = userSettings.dailyAvailableHours;
+    const totalCapacity = workDaysInRange * dailyCapacity;
+    let feasible = true;
+    let warning = '';
+
+    if (sessionDuration > dailyCapacity) {
+      feasible = false;
+      warning = `Session duration (${sessionDuration.toFixed(1)}h) exceeds daily capacity (${dailyCapacity}h)`;
+    } else if (totalTime > totalCapacity * 0.8) {
+      feasible = false;
+      warning = `Total time (${totalTime.toFixed(1)}h) may exceed available capacity`;
+    } else if (numberOfSessions > workDaysInRange) {
+      feasible = false;
+      warning = 'Not enough work days for planned sessions';
+    }
+
+    return { totalTime, sessions: numberOfSessions, frequency, feasible, warning };
   };
 
   // Update total time when session data changes
   useEffect(() => {
     if (estimationMode === 'session') {
-      const sessionHours = parseInt(sessionData.sessionHours) || 0;
-      const sessionMinutes = parseInt(sessionData.sessionMinutes) || 0;
-      const sessionDuration = sessionHours + sessionMinutes / 60;
-
-      setSessionData(prev => ({ ...prev, sessionDuration: sessionDuration.toString() }));
-
-      const totalTime = calculateSessionBasedTime();
-      if (totalTime > 0) {
-        const hours = Math.floor(totalTime);
-        const minutes = Math.round((totalTime - hours) * 60);
+      const calculation = calculateSessionBasedTime();
+      if (calculation.totalTime > 0) {
+        const hours = Math.floor(calculation.totalTime);
+        const minutes = Math.round((calculation.totalTime - hours) * 60);
         setFormData(prev => ({
           ...prev,
           estimatedHours: hours.toString(),
@@ -1056,7 +1102,7 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
         {(!isFormValid || isFormInvalid) && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg mt-4">
             <div className="flex items-start gap-2">
-              <span className="text-red-500 text-lg">⚠️</span>
+              <span className="text-red-500 text-lg">��️</span>
               <div className="text-sm text-red-700 dark:text-red-200">
                 <div className="font-semibold mb-2">Cannot Add Task - Please Fix These Issues:</div>
                 <ul className="space-y-1 text-xs">
