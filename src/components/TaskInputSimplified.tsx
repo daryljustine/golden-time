@@ -31,6 +31,14 @@ const TaskInputSimplified: React.FC<TaskInputProps> = ({ onAddTask, onCancel, us
     totalTimeNeeded: '',
   });
 
+  // Session-based estimation state
+  const [estimationMode, setEstimationMode] = useState<'total' | 'session'>('total');
+  const [sessionData, setSessionData] = useState({
+    sessionDuration: '2.0',
+    sessionHours: '2',
+    sessionMinutes: '0'
+  });
+
   const [showTimeEstimationModal, setShowTimeEstimationModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
@@ -61,6 +69,95 @@ const TaskInputSimplified: React.FC<TaskInputProps> = ({ onAddTask, onCancel, us
     }
   }, [formData.deadline]);
 
+  // Calculate session-based total time and metadata (same logic as TaskInput)
+  const calculateSessionBasedTime = () => {
+    if (!formData.startDate || !formData.deadline || estimationMode !== 'session') {
+      return { totalTime: 0, sessions: 0, frequency: '', feasible: true, warning: '' };
+    }
+
+    const startDate = new Date(formData.startDate);
+    const endDate = new Date(formData.deadline);
+    const timeDiff = endDate.getTime() - startDate.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    if (daysDiff <= 0) {
+      return { totalTime: 0, sessions: 0, frequency: 'Invalid date range', feasible: false, warning: 'Deadline must be after start date' };
+    }
+
+    const sessionDuration = (parseInt(sessionData.sessionHours) || 0) + (parseInt(sessionData.sessionMinutes) || 0) / 60;
+    if (sessionDuration <= 0) {
+      return { totalTime: 0, sessions: 0, frequency: '', feasible: true, warning: '' };
+    }
+
+    // Calculate work days in the range
+    let workDaysInRange = 0;
+    const currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      if (userSettings.workDays.includes(dayOfWeek)) {
+        workDaysInRange++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (workDaysInRange === 0) {
+      return { totalTime: 0, sessions: 0, frequency: 'No work days', feasible: false, warning: 'No work days in the selected range' };
+    }
+
+    // Calculate optimal session distribution
+    let numberOfSessions;
+    let frequency;
+
+    if (workDaysInRange <= 5) {
+      numberOfSessions = Math.max(1, Math.ceil(workDaysInRange / 2));
+      frequency = 'Every 2-3 days';
+    } else if (workDaysInRange <= 14) {
+      numberOfSessions = Math.max(2, Math.ceil(workDaysInRange * 0.4));
+      frequency = '2-3 times per week';
+    } else {
+      numberOfSessions = Math.max(3, Math.ceil(workDaysInRange * 0.3));
+      frequency = '2-3 times per week';
+    }
+
+    const totalTime = sessionDuration * numberOfSessions;
+
+    // Check feasibility
+    const dailyCapacity = userSettings.dailyAvailableHours;
+    const totalCapacity = workDaysInRange * dailyCapacity;
+    let feasible = true;
+    let warning = '';
+
+    if (sessionDuration > dailyCapacity) {
+      feasible = false;
+      warning = `Session duration (${sessionDuration.toFixed(1)}h) exceeds daily capacity (${dailyCapacity}h)`;
+    } else if (totalTime > totalCapacity * 0.8) {
+      feasible = false;
+      warning = `Total time (${totalTime.toFixed(1)}h) may exceed available capacity`;
+    } else if (numberOfSessions > workDaysInRange) {
+      feasible = false;
+      warning = 'Not enough work days for planned sessions';
+    }
+
+    return { totalTime, sessions: numberOfSessions, frequency, feasible, warning };
+  };
+
+  // Update total time when session data changes
+  useEffect(() => {
+    if (estimationMode === 'session') {
+      const calculation = calculateSessionBasedTime();
+      if (calculation.totalTime > 0) {
+        const hours = Math.floor(calculation.totalTime);
+        const minutes = Math.round((calculation.totalTime - hours) * 60);
+        setFormData(prev => ({
+          ...prev,
+          estimatedHours: hours.toString(),
+          estimatedMinutes: minutes.toString()
+        }));
+      }
+    }
+  }, [sessionData.sessionHours, sessionData.sessionMinutes, formData.startDate, formData.deadline, estimationMode, userSettings.workDays]);
+
   // Reset conflicting options when one-sitting task is toggled
   useEffect(() => {
     if (formData.isOneTimeTask) {
@@ -73,6 +170,15 @@ const TaskInputSimplified: React.FC<TaskInputProps> = ({ onAddTask, onCancel, us
     const h = Math.max(0, parseInt(hours) || 0);
     const m = Math.max(0, Math.min(59, parseInt(minutes) || 0));
     return h + (m / 60);
+  };
+
+  const formatTimeDisplay = (hours: string, minutes: string): string => {
+    const h = parseInt(hours) || 0;
+    const m = parseInt(minutes) || 0;
+    if (h === 0 && m === 0) return '0 minutes';
+    if (h === 0) return `${m} minutes`;
+    if (m === 0) return `${h} hour${h !== 1 ? 's' : ''}`;
+    return `${h} hour${h !== 1 ? 's' : ''} ${m} minutes`;
   };
 
 
