@@ -118,6 +118,14 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
     isOneTimeTask: false, // New field for one-time tasks
     startDate: new Date().toISOString().split('T')[0], // New: start date defaults to today
   });
+
+  // Session-based estimation state
+  const [estimationMode, setEstimationMode] = useState<'total' | 'session'>('total');
+  const [sessionData, setSessionData] = useState({
+    sessionDuration: '2.0', // Default 2 hours per session
+    sessionHours: '2',
+    sessionMinutes: '0'
+  });
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showTimePresets, setShowTimePresets] = useState(false);
   const [showTaskTimeline, setShowTaskTimeline] = useState(false);
@@ -146,6 +154,52 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
   }, [formData.deadline]);
 
 
+
+  // Calculate session-based total time
+  const calculateSessionBasedTime = () => {
+    if (!formData.startDate || !formData.deadline || estimationMode !== 'session') {
+      return 0;
+    }
+
+    const startDate = new Date(formData.startDate);
+    const endDate = new Date(formData.deadline);
+    const timeDiff = endDate.getTime() - startDate.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    if (daysDiff <= 0) return 0;
+
+    // Calculate sessions based on work days (exclude weekends if not in workDays)
+    const workDaysInRange = Math.ceil(daysDiff * (userSettings.workDays.length / 7));
+
+    // Conservative approach: assume we can do 1 session every 2-3 work days
+    const sessionFrequency = Math.max(1, Math.floor(workDaysInRange / 3));
+    const numberOfSessions = Math.max(1, sessionFrequency);
+
+    const sessionDuration = parseFloat(sessionData.sessionDuration) || 0;
+    return sessionDuration * numberOfSessions;
+  };
+
+  // Update total time when session data changes
+  useEffect(() => {
+    if (estimationMode === 'session') {
+      const sessionHours = parseInt(sessionData.sessionHours) || 0;
+      const sessionMinutes = parseInt(sessionData.sessionMinutes) || 0;
+      const sessionDuration = sessionHours + sessionMinutes / 60;
+
+      setSessionData(prev => ({ ...prev, sessionDuration: sessionDuration.toString() }));
+
+      const totalTime = calculateSessionBasedTime();
+      if (totalTime > 0) {
+        const hours = Math.floor(totalTime);
+        const minutes = Math.round((totalTime - hours) * 60);
+        setFormData(prev => ({
+          ...prev,
+          estimatedHours: hours.toString(),
+          estimatedMinutes: minutes.toString()
+        }));
+      }
+    }
+  }, [sessionData.sessionHours, sessionData.sessionMinutes, formData.startDate, formData.deadline, estimationMode, userSettings.workDays]);
 
   // Check if form is valid for submission
   const isFormInvalid = useMemo(() => {
