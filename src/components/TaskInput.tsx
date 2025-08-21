@@ -191,23 +191,9 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
       return { totalTime: 0, sessions: 0, frequency: 'No work days', feasible: false, warning: 'No work days in the selected range' };
     }
 
-    // Calculate optimal session distribution
-    let numberOfSessions;
-    let frequency;
-
-    if (workDaysInRange <= 5) {
-      // Short timeline: 1 session every other work day
-      numberOfSessions = Math.max(1, Math.ceil(workDaysInRange / 2));
-      frequency = 'Every 2-3 days';
-    } else if (workDaysInRange <= 14) {
-      // Medium timeline: 2-3 sessions per week
-      numberOfSessions = Math.max(2, Math.ceil(workDaysInRange * 0.4));
-      frequency = '2-3 times per week';
-    } else {
-      // Long timeline: 2-3 sessions per week
-      numberOfSessions = Math.max(3, Math.ceil(workDaysInRange * 0.3));
-      frequency = '2-3 times per week';
-    }
+    // Calculate sessions - default to daily
+    const numberOfSessions = workDaysInRange;
+    const frequency = 'Daily';
 
     const totalTime = sessionDuration * numberOfSessions;
 
@@ -223,9 +209,6 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
     } else if (totalTime > totalCapacity * 0.8) {
       feasible = false;
       warning = `Total time (${totalTime.toFixed(1)}h) may exceed available capacity`;
-    } else if (numberOfSessions > workDaysInRange) {
-      feasible = false;
-      warning = 'Not enough work days for planned sessions';
     }
 
     return { totalTime, sessions: numberOfSessions, frequency, feasible, warning };
