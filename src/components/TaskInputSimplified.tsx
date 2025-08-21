@@ -294,15 +294,6 @@ const TaskInputSimplified: React.FC<TaskInputProps> = ({ onAddTask, onCancel, us
                      isStartDateValid &&
                      (!formData.isOneTimeTask || (formData.deadline && !isOneSittingTooLong && !isOneSittingNoTimeSlot));
 
-  const formatTimeDisplay = (hours: string, minutes: string) => {
-    const h = parseInt(hours || '0');
-    const m = parseInt(minutes || '0');
-    if (h === 0 && m === 0) return 'Not set';
-    if (h === 0) return `${m}m`;
-    if (m === 0) return `${h}h`;
-    return `${h}h ${m}m`;
-  };
-
   const getValidationErrors = () => {
     const errors: string[] = [];
     if (!formData.title.trim()) errors.push('Task title is required');
