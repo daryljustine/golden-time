@@ -928,36 +928,73 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
               </div>
 
               {/* Auto-calculated preview */}
-              {formData.startDate && formData.deadline && (
-                <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Automatic Calculation:</div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="text-gray-500 dark:text-gray-400">Session Duration:</div>
-                      <div className="font-medium text-gray-800 dark:text-white">
-                        {sessionData.sessionHours}h {sessionData.sessionMinutes}m
+              {formData.startDate && formData.deadline && (() => {
+                const calculation = calculateSessionBasedTime();
+                return (
+                  <div className={`p-3 rounded-lg border ${
+                    calculation.feasible
+                      ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'
+                      : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+                  }`}>
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Automatic Calculation:</div>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-gray-500 dark:text-gray-400">Session Duration:</div>
+                        <div className="font-medium text-gray-800 dark:text-white">
+                          {sessionData.sessionHours}h {sessionData.sessionMinutes}m
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500 dark:text-gray-400">Planned Sessions:</div>
+                        <div className="font-medium text-gray-800 dark:text-white">
+                          {calculation.sessions} sessions
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500 dark:text-gray-400">Total Time:</div>
+                        <div className={`font-medium ${
+                          calculation.feasible
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {calculation.totalTime > 0 ? `${calculation.totalTime.toFixed(1)}h` : 'Set session duration'}
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-gray-500 dark:text-gray-400">Total Time:</div>
-                      <div className="font-medium text-blue-600 dark:text-blue-400">
-                        {calculateSessionBasedTime() > 0 ? `${calculateSessionBasedTime().toFixed(1)}h` : 'Set dates first'}
+
+                    {calculation.frequency && (
+                      <div className="mt-2 flex items-center space-x-1">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Frequency:</span>
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{calculation.frequency}</span>
                       </div>
-                    </div>
+                    )}
+
+                    {calculation.warning && (
+                      <div className="mt-2 flex items-start space-x-2 text-xs text-red-600 dark:text-red-400">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{calculation.warning}</span>
+                      </div>
+                    )}
+
+                    {calculation.feasible && calculation.totalTime > 0 && (
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        The app will automatically schedule {calculation.sessions} sessions based on your availability.
+                      </div>
+                    )}
                   </div>
-                  {calculateSessionBasedTime() > 0 && (
-                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      Based on your start date and deadline, the app will schedule sessions as needed.
-                    </div>
-                  )}
+                );
+              })()}
+
+              {(!formData.startDate || !formData.deadline) && (
+                <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg flex items-center space-x-2">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Please set both start date and deadline to see the automatic calculation.</span>
                 </div>
               )}
-
-              {!formData.startDate || !formData.deadline ? (
-                <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
-                  Please set both start date and deadline to see the automatic calculation.
-                </div>
-              ) : null}
             </div>
           )}
         </div>
@@ -1102,7 +1139,7 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel, userSettings
         {(!isFormValid || isFormInvalid) && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg mt-4">
             <div className="flex items-start gap-2">
-              <span className="text-red-500 text-lg">��️</span>
+              <span className="text-red-500 text-lg">⚠️</span>
               <div className="text-sm text-red-700 dark:text-red-200">
                 <div className="font-semibold mb-2">Cannot Add Task - Please Fix These Issues:</div>
                 <ul className="space-y-1 text-xs">
